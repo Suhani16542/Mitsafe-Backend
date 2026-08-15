@@ -16,21 +16,26 @@ const seedAdmin = async () => {
     await mongoose.connect(mongoUri);
     console.log('Connected to MongoDB for admin seeding...');
 
-    const email = (process.env.ADMIN_EMAIL || 'admin@mitsafe.com').toLowerCase();
-    const password = process.env.ADMIN_PASSWORD || 'Admin@mitsafe123!';
+    const targetEmail = (process.env.ADMIN_EMAIL || 'modern@mitsafe.com').trim().toLowerCase();
+    const newPassword = process.env.ADMIN_PASSWORD || 'modern123';
 
-    const existingAdmin = await Admin.findOne({ email });
+    // Find admin by target email or find existing admin record
+    let admin = await Admin.findOne({ email: targetEmail });
+    if (!admin) {
+      admin = await Admin.findOne();
+    }
 
-    if (existingAdmin) {
-      existingAdmin.password = password;
-      await existingAdmin.save();
-      console.log(`Admin account (${email}) password updated/reset successfully.`);
+    if (admin) {
+      admin.email = targetEmail;
+      admin.password = newPassword;
+      await admin.save();
+      console.log(`Admin account updated successfully with email: ${admin.email}`);
     } else {
       await Admin.create({
-        email,
-        password,
+        email: targetEmail,
+        password: newPassword,
       });
-      console.log(`Admin account (${email}) created successfully.`);
+      console.log(`Admin account created successfully with email: ${targetEmail}`);
     }
 
     await mongoose.connection.close();
