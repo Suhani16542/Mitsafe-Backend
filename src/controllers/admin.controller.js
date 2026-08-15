@@ -40,11 +40,15 @@ export const loginAdmin = asyncWrapper(async (req, res) => {
     });
   }
 
-  // Find admin and include password field
-  const admin = await Admin.findOne({ email: email.toLowerCase() }).select('+password');
+  const normalizedEmail = email.trim().toLowerCase();
+
+  logger.info(`Admin login attempt for: ${normalizedEmail} (password provided: ${Boolean(password)})`);
+
+  // Find admin and explicitly include password field (since select: false in schema)
+  const admin = await Admin.findOne({ email: normalizedEmail }).select('+password');
 
   if (!admin) {
-    logger.warn(`Admin login failed: Account with email ${email} not found`);
+    logger.warn(`Admin login failed: Account with email ${normalizedEmail} not found`);
     return res.status(401).json({
       success: false,
       message: 'Invalid email or password',
@@ -54,7 +58,7 @@ export const loginAdmin = asyncWrapper(async (req, res) => {
   // Check password match
   const isMatch = await admin.matchPassword(password);
   if (!isMatch) {
-    logger.warn(`Admin login failed: Incorrect password for ${email}`);
+    logger.warn(`Admin login failed: Incorrect password for ${normalizedEmail}`);
     return res.status(401).json({
       success: false,
       message: 'Invalid email or password',
