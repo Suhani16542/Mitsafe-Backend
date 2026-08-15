@@ -1,6 +1,7 @@
 import express from 'express';
 import quoteRoutes from './quote.routes.js';
 import blogRoutes from './blog.routes.js';
+import adminRoutes from './admin.routes.js';
 
 const router = express.Router();
 
@@ -15,6 +16,7 @@ router.get('/health', (req, res) => {
 });
 
 // Feature Routes
+router.use('/admin', adminRoutes);
 router.use('/quotes', quoteRoutes);
 router.use('/blogs', blogRoutes);
 
@@ -27,3 +29,4 @@ router.get('/', (req, res) => {
 });
 
 export default router;
+

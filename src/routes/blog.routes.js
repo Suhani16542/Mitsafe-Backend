@@ -9,7 +9,7 @@ import {
   deleteBlog,
   uploadBlogImage,
 } from '../controllers/blog.controller.js';
-import { verifyBlogAdminKey } from '../middlewares/blogAdmin.middleware.js';
+import { adminAuthMiddleware } from '../middlewares/adminAuth.middleware.js';
 import {
   createBlogValidationRules,
   updateBlogValidationRules,
@@ -34,14 +34,14 @@ router.get('/categories', getCategories);
 router.get('/:slug', getBlogBySlug);
 
 // ==========================================
-// PROTECTED MANAGEMENT ROUTES (Admin Key Required)
-// Header required: x-blog-admin-key: <BLOG_ADMIN_API_KEY>
+// PROTECTED MANAGEMENT ROUTES (Admin Authentication Required)
+// Cookie (admin_token) or Authorization header required
 // ==========================================
 
 // POST /api/blogs/upload-image - Upload featured image
 router.post(
   '/upload-image',
-  verifyBlogAdminKey,
+  adminAuthMiddleware,
   upload.single('image'),
   uploadBlogImage
 );
@@ -49,7 +49,7 @@ router.post(
 // POST /api/blogs - Create a new blog post
 router.post(
   '/',
-  verifyBlogAdminKey,
+  adminAuthMiddleware,
   createBlogValidationRules,
   validateRequest,
   createBlog
@@ -58,7 +58,7 @@ router.post(
 // PUT /api/blogs/:id - Update an existing blog post
 router.put(
   '/:id',
-  verifyBlogAdminKey,
+  adminAuthMiddleware,
   updateBlogValidationRules,
   validateRequest,
   updateBlog
@@ -67,7 +67,7 @@ router.put(
 // PATCH /api/blogs/:id/status - Toggle published/draft status
 router.patch(
   '/:id/status',
-  verifyBlogAdminKey,
+  adminAuthMiddleware,
   blogStatusValidationRules,
   validateRequest,
   toggleBlogStatus
@@ -76,8 +76,9 @@ router.patch(
 // DELETE /api/blogs/:id - Delete a blog post
 router.delete(
   '/:id',
-  verifyBlogAdminKey,
+  adminAuthMiddleware,
   deleteBlog
 );
 
 export default router;
+

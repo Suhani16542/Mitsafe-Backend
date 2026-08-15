@@ -12,6 +12,7 @@ import logger from './config/logger.js';
 import path from 'path';
 import quoteRoutes from './routes/quote.routes.js';
 import blogRoutes from './routes/blog.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 
 const app = express();
 
@@ -24,13 +25,55 @@ app.use(
   })
 );
 
+// Whitelist of allowed origins for CORS with credentials support
+const rawOrigins = [
+  'https://www.mitsafe.com',
+  'https://mitsafe.com',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
+  process.env.CORS_ORIGIN,
+];
+
+const allowedOrigins = Array.from(
+  new Set(
+    rawOrigins
+      .flatMap((item) => (item ? item.split(',') : []))
+      .map((item) => item.trim().replace(/\/$/, ''))
+      .filter((item) => item && item !== '*')
+  )
+);
+
 // CORS configuration
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const normalizedOrigin = origin.replace(/\/$/, '');
+      if (
+        allowedOrigins.includes(normalizedOrigin) ||
+        (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost(:\d+)?$/.test(normalizedOrigin))
+      ) {
+        return callback(null, true);
+      }
+
+      logger.warn(`CORS blocked for unauthorized origin: ${origin}`);
+      return callback(null, false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-blog-admin-key', 'x-admin-key'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'x-blog-admin-key',
+      'x-admin-key',
+    ],
+    optionsSuccessStatus: 200,
   })
 );
 
@@ -70,6 +113,7 @@ app.use(cookieParser());
 
 // API Routes (supporting versioned /api/v1 as well as unversioned aliases)
 app.use('/api/v1', router);
+app.use('/api/admin', adminRoutes);
 app.use('/api/quotes', quoteRoutes);
 app.use('/api/quote', quoteRoutes);
 app.use('/api/blogs', blogRoutes);
@@ -81,3 +125,4 @@ app.all('*', routeNotFoundHandler);
 app.use(globalErrorHandler);
 
 export default app;
+
