@@ -15,12 +15,18 @@ const generateToken = (admin) => {
 };
 
 // Helper for cookie options
-const getCookieOptions = () => {
-  const isProduction = process.env.NODE_ENV === 'production';
+const getCookieOptions = (req) => {
+  // Determine if HTTPS / Render reverse proxy or production
+  const isSecure =
+    process.env.NODE_ENV === 'production' ||
+    req?.secure ||
+    req?.headers?.['x-forwarded-proto'] === 'https';
+
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    secure: Boolean(isSecure),
+    sameSite: isSecure ? 'none' : 'lax',
+    path: '/',
     maxAge: 24 * 60 * 60 * 1000, // 1 day
   };
 };
@@ -68,8 +74,8 @@ export const loginAdmin = asyncWrapper(async (req, res) => {
   // Generate JWT token
   const token = generateToken(admin);
 
-  // Set HTTP-only cookie
-  res.cookie('admin_token', token, getCookieOptions());
+  // Set HTTP-only cookie with cross-origin support
+  res.cookie('admin_token', token, getCookieOptions(req));
 
   logger.info(`Admin logged in successfully: ${admin.email}`);
 
@@ -102,7 +108,9 @@ export const getAdminSession = asyncWrapper(async (req, res) => {
 
   if (!token) {
     return res.status(401).json({
+      success: false,
       authenticated: false,
+      message: 'Authentication required: No active session',
     });
   }
 
@@ -113,11 +121,14 @@ export const getAdminSession = asyncWrapper(async (req, res) => {
 
     if (!admin) {
       return res.status(401).json({
+        success: false,
         authenticated: false,
+        message: 'Admin account not found',
       });
     }
 
     return res.status(200).json({
+      success: true,
       authenticated: true,
       admin: {
         email: admin.email,
@@ -125,7 +136,9 @@ export const getAdminSession = asyncWrapper(async (req, res) => {
     });
   } catch (error) {
     return res.status(401).json({
+      success: false,
       authenticated: false,
+      message: 'Invalid or expired session',
     });
   }
 });
@@ -136,13 +149,10 @@ export const getAdminSession = asyncWrapper(async (req, res) => {
  * @access  Public / Protected
  */
 export const logoutAdmin = asyncWrapper(async (req, res) => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
-  res.clearCookie('admin_token', {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
-  });
+  const cookieOptions = getCookieOptions(req);
+  delete cookieOptions.maxAge;
+
+  res.clearCookie('admin_token', cookieOptions);
 
   return res.status(200).json({
     success: true,

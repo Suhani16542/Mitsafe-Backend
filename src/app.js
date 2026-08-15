@@ -16,6 +16,9 @@ import adminRoutes from './routes/admin.routes.js';
 
 const app = express();
 
+// Trust reverse proxy (e.g. Render, Nginx) so req.secure and x-forwarded-proto are respected
+app.set('trust proxy', 1);
+
 // Global Middlewares
 
 // Security HTTP headers
@@ -30,8 +33,11 @@ const rawOrigins = [
   'https://www.mitsafe.com',
   'https://mitsafe.com',
   'http://localhost:3000',
+  'http://127.0.0.1:3000',
   'http://localhost:3001',
+  'http://127.0.0.1:3001',
   'http://localhost:5173',
+  'http://127.0.0.1:5173',
   process.env.CLIENT_URL,
   process.env.FRONTEND_URL,
   process.env.CORS_ORIGIN,
@@ -56,7 +62,7 @@ app.use(
       const normalizedOrigin = origin.replace(/\/$/, '');
       if (
         allowedOrigins.includes(normalizedOrigin) ||
-        (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost(:\d+)?$/.test(normalizedOrigin))
+        (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin))
       ) {
         return callback(null, true);
       }
