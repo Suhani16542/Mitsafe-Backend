@@ -22,7 +22,9 @@ const seedAdmin = async () => {
     const existingAdmin = await Admin.findOne({ email });
 
     if (existingAdmin) {
-      console.log(`Admin account (${email}) already exists in MongoDB.`);
+      existingAdmin.password = password;
+      await existingAdmin.save();
+      console.log(`Admin account (${email}) password updated/reset successfully.`);
     } else {
       await Admin.create({
         email,
