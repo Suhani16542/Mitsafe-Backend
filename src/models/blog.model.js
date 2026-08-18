@@ -42,6 +42,10 @@ const blogSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    keywords: {
+      type: [String],
+      default: [],
+    },
     tags: {
       type: [String],
       default: [],

@@ -7,6 +7,20 @@ export const validateEnv = () => {
 
   if (missingVars.length > 0) {
     logger.warn(`Missing critical environment variable(s): ${missingVars.join(', ')}.`);
+  } else {
+    try {
+      const uri = process.env.MONGODB_URI;
+      const regex = /^(mongodb(?:\+srv)?:\/\/)(?:([^:]+)(?::([^@]+))?@)?([^/?]+)(?:\/([^?]*))?(?:\?(.*))?$/;
+      const match = uri.match(regex);
+      if (match) {
+        const [, protocol, user, pass, host, dbName] = match;
+        logger.info(`MONGODB_URI configured: Protocol=${protocol.replace('://', '')} | Host=${host} | DB=${dbName || '(default)'} | AuthUserPresent=${Boolean(user)} | AuthPassPresent=${Boolean(pass)}`);
+      } else {
+        logger.warn('MONGODB_URI is set but may not match standard MongoDB URI format.');
+      }
+    } catch {
+      logger.info('MONGODB_URI environment variable is present.');
+    }
   }
 
   // Check and log status of Brevo Email Configuration

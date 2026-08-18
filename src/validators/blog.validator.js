@@ -49,6 +49,24 @@ export const createBlogValidationRules = [
     .optional()
     .trim(),
 
+  body('keywords')
+    .optional()
+    .custom((value) => {
+      if (typeof value !== 'string' && !Array.isArray(value)) {
+        throw new Error('Keywords must be an array of strings or a comma-separated string');
+      }
+      return true;
+    }),
+
+  body('tags')
+    .optional()
+    .custom((value) => {
+      if (typeof value !== 'string' && !Array.isArray(value)) {
+        throw new Error('Tags must be an array of strings or a comma-separated string');
+      }
+      return true;
+    }),
+
   body('author')
     .optional()
     .trim(),
@@ -70,6 +88,24 @@ export const updateBlogValidationRules = [
     .trim()
     .matches(/^[a-z0-9-]+$/)
     .withMessage('Slug can only contain lowercase letters, numbers, and hyphens'),
+
+  body('keywords')
+    .optional()
+    .custom((value) => {
+      if (typeof value !== 'string' && !Array.isArray(value)) {
+        throw new Error('Keywords must be an array of strings or a comma-separated string');
+      }
+      return true;
+    }),
+
+  body('tags')
+    .optional()
+    .custom((value) => {
+      if (typeof value !== 'string' && !Array.isArray(value)) {
+        throw new Error('Tags must be an array of strings or a comma-separated string');
+      }
+      return true;
+    }),
 
   body('status')
     .optional()

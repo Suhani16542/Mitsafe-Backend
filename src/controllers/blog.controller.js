@@ -4,6 +4,43 @@ import Blog, { generateSlug } from '../models/blog.model.js';
 import { processBlogImageUpload } from '../services/upload.service.js';
 
 /**
+ * Parse and normalize string or array of strings into a clean array
+ * - Trims whitespace
+ * - Removes empty values
+ * - Avoids duplicate keywords while preserving original casing of first occurrence
+ */
+export const normalizeStringArray = (input) => {
+  if (!input) return [];
+
+  let items = [];
+  if (Array.isArray(input)) {
+    items = input;
+  } else if (typeof input === 'string') {
+    items = input.split(',');
+  } else {
+    return [];
+  }
+
+  const cleaned = [];
+  const seen = new Set();
+
+  for (const item of items) {
+    if (typeof item === 'string') {
+      const trimmed = item.trim();
+      if (trimmed.length > 0) {
+        const lower = trimmed.toLowerCase();
+        if (!seen.has(lower)) {
+          seen.add(lower);
+          cleaned.push(trimmed);
+        }
+      }
+    }
+  }
+
+  return cleaned;
+};
+
+/**
  * @desc    Get public published blogs with pagination, filtering & search
  * @route   GET /api/v1/blogs (or /api/blogs)
  * @access  Public
@@ -31,7 +68,7 @@ export const getBlogs = asyncWrapper(async (req, res) => {
     queryObj.featured = req.query.featured === 'true';
   }
 
-  // Search keyword across title, excerpt, content, category, tags
+  // Search keyword across title, excerpt, content, category, tags, keywords
   if (req.query.search && req.query.search.trim()) {
     const searchRegex = new RegExp(req.query.search.trim(), 'i');
     queryObj.$or = [
@@ -40,6 +77,7 @@ export const getBlogs = asyncWrapper(async (req, res) => {
       { content: searchRegex },
       { category: searchRegex },
       { tags: searchRegex },
+      { keywords: searchRegex },
     ];
   }
 
@@ -116,6 +154,7 @@ export const createBlog = asyncWrapper(async (req, res, next) => {
     excerpt,
     content,
     category,
+    keywords,
     tags,
     author,
     featuredImage,
@@ -142,7 +181,8 @@ export const createBlog = asyncWrapper(async (req, res, next) => {
     excerpt: excerpt || '',
     content,
     category,
-    tags: Array.isArray(tags) ? tags : tags ? tags.split(',').map((t) => t.trim()) : [],
+    keywords: normalizeStringArray(keywords),
+    tags: normalizeStringArray(tags),
     author: author || 'Mitsafe Team',
     featuredImage: featuredImage || req.body.imageUrl || '',
     featuredImagePublicId: req.body.featuredImagePublicId || req.body.publicId || '',
@@ -191,9 +231,14 @@ export const updateBlog = asyncWrapper(async (req, res, next) => {
     }
   }
 
-  // Handle tags format conversion if string
-  if (req.body.tags && typeof req.body.tags === 'string') {
-    req.body.tags = req.body.tags.split(',').map((t) => t.trim());
+  // Handle keywords format conversion & sanitization if provided
+  if (req.body.keywords !== undefined) {
+    req.body.keywords = normalizeStringArray(req.body.keywords);
+  }
+
+  // Handle tags format conversion & sanitization if provided
+  if (req.body.tags !== undefined) {
+    req.body.tags = normalizeStringArray(req.body.tags);
   }
 
   // Handle publishedAt date when transitioning to published
