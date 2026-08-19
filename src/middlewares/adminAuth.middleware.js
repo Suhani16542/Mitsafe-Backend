@@ -7,8 +7,8 @@ export const adminAuthMiddleware = async (req, res, next) => {
     let token;
 
     // 1. Check HTTP-only cookie
-    if (req.cookies && (req.cookies.admin_token || req.cookies.token)) {
-      token = req.cookies.admin_token || req.cookies.token;
+    if (req.cookies && (req.cookies.admin_token || req.cookies.token || req.cookies.jwt)) {
+      token = req.cookies.admin_token || req.cookies.token || req.cookies.jwt;
     }
     // 2. Check Authorization header (Bearer token)
     else if (
@@ -18,11 +18,17 @@ export const adminAuthMiddleware = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
     }
 
-    // 3. Fallback: Check legacy x-blog-admin-key header for backward compatibility
+    // 3. Fallback: Server-to-server API Key check (strictly when key is configured and matches)
     const clientAdminKey = req.headers['x-blog-admin-key'] || req.headers['x-admin-key'];
     const configuredAdminKey = process.env.BLOG_ADMIN_API_KEY;
 
-    if (!token && clientAdminKey && configuredAdminKey && clientAdminKey === configuredAdminKey) {
+    if (
+      !token &&
+      clientAdminKey &&
+      configuredAdminKey &&
+      clientAdminKey.trim() !== '' &&
+      clientAdminKey.trim() === configuredAdminKey.trim()
+    ) {
       req.admin = { email: process.env.ADMIN_EMAIL || 'admin@mitsafe.com', isApiKey: true };
       return next();
     }
@@ -30,7 +36,7 @@ export const adminAuthMiddleware = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Authentication required',
+        message: 'Authentication required. Please log in to access this resource.',
       });
     }
 
@@ -48,12 +54,16 @@ export const adminAuthMiddleware = async (req, res, next) => {
     }
 
     req.admin = admin;
+    req.user = { id: admin._id, email: admin.email, role: 'admin' };
     next();
   } catch (error) {
-    logger.warn(`Admin auth middleware error: ${error.message}`);
+    logger.warn(`Admin auth middleware rejected request: ${error.message}`);
     return res.status(401).json({
       success: false,
-      message: 'Authentication required',
+      message: error.name === 'TokenExpiredError'
+        ? 'Session expired. Please log in again.'
+        : 'Invalid authentication token.',
     });
   }
 };
+

@@ -4,15 +4,17 @@ import ApiError from '../utils/apiError.js';
 
 export const protect = asyncWrapper(async (req, res, next) => {
   let token;
-  // Check authorization header
-  if (
+
+  // 1. Check cookies
+  if (req.cookies && (req.cookies.admin_token || req.cookies.token || req.cookies.jwt)) {
+    token = req.cookies.admin_token || req.cookies.token || req.cookies.jwt;
+  }
+  // 2. Check authorization header
+  else if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
   ) {
     token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies && req.cookies.jwt) {
-    // Check cookies as backup
-    token = req.cookies.jwt;
   }
 
   if (!token) {
@@ -23,8 +25,9 @@ export const protect = asyncWrapper(async (req, res, next) => {
 
   // Verify token
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // Attach user payload (e.g. id, role) to the request object
+    const jwtSecret = process.env.JWT_SECRET || 'mitsafe_admin_jwt_secret_default_key_2026';
+    const decoded = jwt.verify(token, jwtSecret);
+    // Attach user payload (e.g. id, email, role) to the request object
     req.user = decoded;
     next();
   } catch (error) {
@@ -43,3 +46,4 @@ export const restrictTo = (...roles) => {
     next();
   };
 };
+

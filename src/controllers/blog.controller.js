@@ -1,7 +1,40 @@
+import jwt from 'jsonwebtoken';
 import asyncWrapper from '../utils/asyncWrapper.js';
 import ApiError from '../utils/apiError.js';
 import Blog, { generateSlug } from '../models/blog.model.js';
 import { processBlogImageUpload } from '../services/upload.service.js';
+
+// Helper to check if request has valid admin credentials (Cookie, Bearer token, or API key)
+export const isRequestAdmin = (req) => {
+  try {
+    let token;
+    if (req.cookies && (req.cookies.admin_token || req.cookies.token || req.cookies.jwt)) {
+      token = req.cookies.admin_token || req.cookies.token || req.cookies.jwt;
+    } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    const clientAdminKey = req.headers['x-blog-admin-key'] || req.headers['x-admin-key'];
+    const configuredAdminKey = process.env.BLOG_ADMIN_API_KEY;
+
+    if (
+      !token &&
+      clientAdminKey &&
+      configuredAdminKey &&
+      clientAdminKey.trim() !== '' &&
+      clientAdminKey.trim() === configuredAdminKey.trim()
+    ) {
+      return true;
+    }
+
+    if (!token) return false;
+    const jwtSecret = process.env.JWT_SECRET || 'mitsafe_admin_jwt_secret_default_key_2026';
+    jwt.verify(token, jwtSecret);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Parse and normalize string or array of strings into a clean array
@@ -41,20 +74,25 @@ export const normalizeStringArray = (input) => {
 };
 
 /**
- * @desc    Get public published blogs with pagination, filtering & search
+ * @desc    Get public published blogs with pagination, filtering & search (Admin can view drafts / all)
  * @route   GET /api/v1/blogs (or /api/blogs)
- * @access  Public
+ * @access  Public (Restricted to published for non-admins)
  */
 export const getBlogs = asyncWrapper(async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
   const limit = parseInt(req.query.limit, 10) || 9;
   const skip = (page - 1) * limit;
 
+  const isAdmin = isRequestAdmin(req);
+
   // Build filter criteria
   const queryObj = {};
-  if (req.query.status && req.query.status !== 'all') {
-    queryObj.status = req.query.status;
-  } else if (!req.query.status) {
+  if (isAdmin && req.query.status) {
+    if (req.query.status !== 'all') {
+      queryObj.status = req.query.status;
+    }
+  } else {
+    // Non-admins and public callers can ONLY see published blogs
     queryObj.status = 'published';
   }
 
@@ -108,16 +146,24 @@ export const getBlogs = asyncWrapper(async (req, res) => {
 });
 
 /**
- * @desc    Get single published blog by slug
+ * @desc    Get single blog by slug (Published for public, draft accessible to admin)
  * @route   GET /api/v1/blogs/:slug
- * @access  Public
+ * @access  Public (Published) / Admin (Any status)
  */
 export const getBlogBySlug = asyncWrapper(async (req, res, next) => {
   const { slug } = req.params;
+  const isAdmin = isRequestAdmin(req);
 
-  const blog = await Blog.findOne({
+  const query = {
     slug: slug.toLowerCase(),
-  }).lean();
+  };
+
+  // If not admin, only published blogs can be retrieved
+  if (!isAdmin) {
+    query.status = 'published';
+  }
+
+  const blog = await Blog.findOne(query).lean();
 
   if (!blog) {
     return next(new ApiError(404, `Blog article with slug '${slug}' not found`));

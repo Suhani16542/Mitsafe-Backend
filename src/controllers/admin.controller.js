@@ -4,30 +4,30 @@ import asyncWrapper from '../utils/asyncWrapper.js';
 import logger from '../config/logger.js';
 
 // Helper to generate JWT Token
-const generateToken = (admin) => {
+export const generateToken = (admin) => {
   const jwtSecret = process.env.JWT_SECRET || 'mitsafe_admin_jwt_secret_default_key_2026';
   const expiresIn = process.env.JWT_EXPIRES_IN || '1d';
   return jwt.sign(
-    { id: admin._id, email: admin.email },
+    { id: admin._id, email: admin.email, role: 'admin' },
     jwtSecret,
     { expiresIn }
   );
 };
 
-// Helper for cookie options
-const getCookieOptions = (req) => {
-  // Determine if HTTPS / Render reverse proxy or production
+// Helper for cookie options (supports cross-domain production HTTPS)
+export const getCookieOptions = (req) => {
+  const isProduction = process.env.NODE_ENV === 'production';
   const isSecure =
-    process.env.NODE_ENV === 'production' ||
-    req?.secure ||
+    isProduction ||
+    Boolean(req?.secure) ||
     req?.headers?.['x-forwarded-proto'] === 'https';
 
   return {
     httpOnly: true,
-    secure: Boolean(isSecure),
+    secure: isSecure,
     sameSite: isSecure ? 'none' : 'lax',
     path: '/',
-    maxAge: 24 * 60 * 60 * 1000, // 1 day
+    maxAge: 24 * 60 * 60 * 1000, // 1 day (24 hours)
   };
 };
 
@@ -85,21 +85,24 @@ export const loginAdmin = asyncWrapper(async (req, res) => {
     admin: {
       email: admin.email,
     },
-    token, // Also return token in body as fallback for non-cookie API clients
+    token, // Return token in response body for Authorization: Bearer fallback
   });
 });
 
 /**
  * @desc    Check Admin Authentication Session Status
  * @route   GET /api/admin/me
- * @access  Public (Checks auth internally)
+ * @access  Protected
  */
 export const getAdminSession = asyncWrapper(async (req, res) => {
   let token;
 
-  if (req.cookies && (req.cookies.admin_token || req.cookies.token)) {
-    token = req.cookies.admin_token || req.cookies.token;
-  } else if (
+  // 1. Check HTTP-only cookie
+  if (req.cookies && (req.cookies.admin_token || req.cookies.token || req.cookies.jwt)) {
+    token = req.cookies.admin_token || req.cookies.token || req.cookies.jwt;
+  }
+  // 2. Check Authorization header (Bearer token)
+  else if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
   ) {
@@ -153,6 +156,8 @@ export const logoutAdmin = asyncWrapper(async (req, res) => {
   delete cookieOptions.maxAge;
 
   res.clearCookie('admin_token', cookieOptions);
+  res.clearCookie('token', cookieOptions);
+  res.clearCookie('jwt', cookieOptions);
 
   return res.status(200).json({
     success: true,
