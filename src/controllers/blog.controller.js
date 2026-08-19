@@ -2,7 +2,8 @@ import jwt from 'jsonwebtoken';
 import asyncWrapper from '../utils/asyncWrapper.js';
 import ApiError from '../utils/apiError.js';
 import Blog, { generateSlug } from '../models/blog.model.js';
-import { processBlogImageUpload } from '../services/upload.service.js';
+import { processBlogImageUpload, deleteFromCloudinary } from '../services/upload.service.js';
+import logger from '../config/logger.js';
 
 // Helper to check if request has valid admin credentials (Cookie, Bearer token, or API key)
 export const isRequestAdmin = (req) => {
@@ -343,6 +344,13 @@ export const deleteBlog = asyncWrapper(async (req, res, next) => {
     return next(new ApiError(404, `Blog not found with ID: ${id}`));
   }
 
+  // Cleanup Cloudinary image if present
+  if (blog.featuredImagePublicId) {
+    deleteFromCloudinary(blog.featuredImagePublicId).catch((err) => {
+      logger.warn(`Failed to delete blog image from Cloudinary: ${err.message}`);
+    });
+  }
+
   res.status(200).json({
     success: true,
     message: 'Blog article deleted successfully',
@@ -351,7 +359,7 @@ export const deleteBlog = asyncWrapper(async (req, res, next) => {
 });
 
 /**
- * @desc    Upload blog featured image
+ * @desc    Upload blog featured image directly to permanent Cloudinary storage
  * @route   POST /api/v1/blogs/upload-image
  * @access  Protected (Admin Key Required)
  */
@@ -364,8 +372,15 @@ export const uploadBlogImage = asyncWrapper(async (req, res, next) => {
 
   res.status(200).json({
     success: true,
-    message: 'Image uploaded successfully',
+    message: 'Image uploaded successfully to Cloudinary',
     imageUrl,
+    url: imageUrl,
     publicId,
+    data: {
+      imageUrl,
+      url: imageUrl,
+      publicId,
+    },
   });
 });
+

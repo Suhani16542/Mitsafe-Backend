@@ -1,84 +1,107 @@
-import { v2 as cloudinary } from 'cloudinary';
-import fs from 'fs';
-import path from 'path';
+import cloudinary, { isCloudinaryConfigured } from '../config/cloudinary.js';
 import logger from '../config/logger.js';
 
 /**
- * Configure Cloudinary SDK dynamically from environment variables
+ * Configure / check Cloudinary SDK status
  * @returns {boolean} Whether Cloudinary SDK is fully configured
  */
 export const configureCloudinary = () => {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME ? process.env.CLOUDINARY_CLOUD_NAME.trim().replace(/^["']|["']$/g, '') : '';
-  const apiKey = process.env.CLOUDINARY_API_KEY ? process.env.CLOUDINARY_API_KEY.trim().replace(/^["']|["']$/g, '') : '';
-  const apiSecret = process.env.CLOUDINARY_API_SECRET ? process.env.CLOUDINARY_API_SECRET.trim().replace(/^["']|["']$/g, '') : '';
-
-  if (
-    cloudName &&
-    apiKey &&
-    apiSecret &&
-    !cloudName.includes('your_') &&
-    !apiKey.includes('your_')
-  ) {
-    cloudinary.config({
-      cloud_name: cloudName,
-      api_key: apiKey,
-      api_secret: apiSecret,
-      secure: true,
-    });
-    return true;
-  }
-  return false;
+  return isCloudinaryConfigured();
 };
 
 /**
- * Process uploaded file and return permanent image URL & publicId (Cloudinary or local storage fallback)
+ * Upload a file buffer directly to Cloudinary
+ * @param {Buffer} buffer - File buffer from multer memory storage
+ * @param {string} filename - Original file name for reference
+ * @param {string} folder - Target folder in Cloudinary
+ * @returns {Promise<{ imageUrl: string, publicId: string }>}
+ */
+export const uploadBufferToCloudinary = (buffer, filename = '', folder = 'mitsafe/blogs') => {
+  return new Promise((resolve, reject) => {
+    if (!isCloudinaryConfigured()) {
+      return reject(new Error('Cloudinary credentials (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) are missing or incomplete.'));
+    }
+
+    const cleanFileName = filename
+      ? filename.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_')
+      : 'image';
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: 'image',
+        public_id: `${cleanFileName}_${Date.now()}`,
+        transformation: [
+          { quality: 'auto:good' },
+          { fetch_format: 'auto' },
+        ],
+      },
+      (error, result) => {
+        if (error) {
+          logger.error(`Cloudinary stream upload failed: ${error.message}`, error);
+          return reject(error);
+        }
+        logger.info(`Cloudinary image upload successful: ${result.secure_url} (public_id: ${result.public_id})`);
+        resolve({
+          imageUrl: result.secure_url,
+          publicId: result.public_id,
+        });
+      }
+    );
+
+    uploadStream.end(buffer);
+  });
+};
+
+/**
+ * Process uploaded file (memory buffer or disk file) and return permanent Cloudinary secure URL
  * @param {Object} file - Express Multer file object
  * @param {Object} req - Express Request object
- * @returns {Promise<{ imageUrl: string, publicId: string }>} Object containing imageUrl and publicId
+ * @returns {Promise<{ imageUrl: string, publicId: string }>} Object containing permanent imageUrl and publicId
  */
 export const processBlogImageUpload = async (file, req) => {
   if (!file) {
     throw new Error('No file provided for upload');
   }
 
-  const isCloudinaryReady = configureCloudinary();
-
-  if (isCloudinaryReady) {
-    try {
-      logger.info(`Uploading image ${file.originalname} to Cloudinary...`);
-
-      const result = await cloudinary.uploader.upload(file.path, {
-        resource_type: 'auto',
-      });
-
-      logger.info(`Cloudinary image upload successful: ${result.secure_url} (public_id: ${result.public_id})`);
-
-      // Clean up local temp file after successful upload
-      if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-      }
-
-      return {
-        imageUrl: result.secure_url,
-        publicId: result.public_id,
-      };
-    } catch (err) {
-      logger.error(`Cloudinary upload failed: ${err.message}`, err);
-    }
-  } else {
-    logger.info('Cloudinary credentials missing or incomplete. Using local disk storage.');
+  // 1. Direct Buffer Upload (Multer Memory Storage)
+  if (file.buffer) {
+    logger.info(`Uploading image buffer (${file.originalname}) directly to Cloudinary...`);
+    const result = await uploadBufferToCloudinary(file.buffer, file.originalname);
+    return result;
   }
 
-  // Fallback: Local Server URL
-  const protocol = req ? req.protocol : 'http';
-  const host = req ? req.get('host') : 'localhost:5000';
-  const filename = path.basename(file.path);
-  const localUrl = `${protocol}://${host}/uploads/${filename}`;
+  // 2. Fallback if file was saved to temporary disk path
+  if (file.path) {
+    logger.info(`Uploading temp file ${file.path} to Cloudinary...`);
+    const result = await cloudinary.uploader.upload(file.path, {
+      folder: 'mitsafe/blogs',
+      resource_type: 'image',
+      transformation: [
+        { quality: 'auto:good' },
+        { fetch_format: 'auto' },
+      ],
+    });
 
-  logger.info(`Blog image stored locally at: ${localUrl}`);
-  return {
-    imageUrl: localUrl,
-    publicId: filename,
-  };
+    return {
+      imageUrl: result.secure_url,
+      publicId: result.public_id,
+    };
+  }
+
+  throw new Error('Invalid file format received for image upload');
 };
 
+/**
+ * Delete image from Cloudinary by public ID
+ * @param {string} publicId
+ */
+export const deleteFromCloudinary = async (publicId) => {
+  if (!publicId || !isCloudinaryConfigured()) return;
+  try {
+    await cloudinary.uploader.destroy(publicId);
+    logger.info(`Deleted image from Cloudinary: ${publicId}`);
+  } catch (err) {
+    logger.warn(`Failed to delete image from Cloudinary (${publicId}): ${err.message}`);
+  }
+};

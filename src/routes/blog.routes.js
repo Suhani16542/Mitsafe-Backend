@@ -16,7 +16,7 @@ import {
   blogStatusValidationRules,
 } from '../validators/blog.validator.js';
 import { validateRequest } from '../middlewares/validation.middleware.js';
-import { upload } from '../middlewares/upload.middleware.js';
+import { uploadSingleImage } from '../middlewares/upload.middleware.js';
 
 const router = express.Router();
 
@@ -38,11 +38,11 @@ router.get('/:slug', getBlogBySlug);
 // Cookie (admin_token) or Authorization header required
 // ==========================================
 
-// POST /api/blogs/upload-image - Upload featured image
+// POST /api/blogs/upload-image - Upload featured image to Cloudinary
 router.post(
   '/upload-image',
   adminAuthMiddleware,
-  upload.single('image'),
+  uploadSingleImage,
   uploadBlogImage
 );
 
