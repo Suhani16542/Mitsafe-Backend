@@ -1,5 +1,6 @@
 import cloudinary, { isCloudinaryConfigured } from '../config/cloudinary.js';
 import logger from '../config/logger.js';
+import ApiError from '../utils/apiError.js';
 
 /**
  * Configure / check Cloudinary SDK status
@@ -7,6 +8,28 @@ import logger from '../config/logger.js';
  */
 export const configureCloudinary = () => {
   return isCloudinaryConfigured();
+};
+
+/**
+ * Helper to extract safe diagnostic log info without printing credentials or secrets
+ */
+const logUploadDiagnostics = ({ file, method, folder, resourceType, preset }) => {
+  const config = cloudinary.config();
+  logger.info('--- Cloudinary Upload Diagnostic ---');
+  logger.info(`Cloud name configured: ${Boolean(config.cloud_name)}`);
+  logger.info(`API key configured: ${Boolean(config.api_key)}`);
+  logger.info(`API secret configured: ${Boolean(config.api_secret)}`);
+  logger.info(`File received: ${Boolean(file)}`);
+  if (file) {
+    logger.info(`Original filename: ${file.originalname || 'unknown'}`);
+    logger.info(`Mimetype: ${file.mimetype || 'unknown'}`);
+    logger.info(`File size: ${file.size || (file.buffer ? file.buffer.length : 'unknown')} bytes`);
+  }
+  logger.info(`Upload method: ${method}`);
+  logger.info(`Resource type: ${resourceType}`);
+  logger.info(`Folder: ${folder}`);
+  logger.info(`Upload preset name: ${preset || 'none (using authenticated SDK signed upload)'}`);
+  logger.info('------------------------------------');
 };
 
 /**
@@ -19,7 +42,12 @@ export const configureCloudinary = () => {
 export const uploadBufferToCloudinary = (buffer, filename = '', folder = 'mitsafe/blogs') => {
   return new Promise((resolve, reject) => {
     if (!isCloudinaryConfigured()) {
-      return reject(new Error('Cloudinary credentials (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) are missing or incomplete.'));
+      return reject(
+        new ApiError(
+          500,
+          'Cloudinary credentials (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) are missing or incomplete in environment variables.'
+        )
+      );
     }
 
     const cleanFileName = filename
@@ -38,10 +66,33 @@ export const uploadBufferToCloudinary = (buffer, filename = '', folder = 'mitsaf
       },
       (error, result) => {
         if (error) {
-          logger.error(`Cloudinary stream upload failed: ${error.message}`, error);
-          return reject(error);
+          logger.error('--- Cloudinary Upload Failed ---');
+          logger.error(`Cloudinary response status: Failed`);
+          logger.error(`Cloudinary error http_code: ${error.http_code || 500}`);
+          logger.error(`Cloudinary error message: ${error.message || 'Unknown error'}`);
+          logger.error(`Cloudinary error name: ${error.name || 'Error'}`);
+          logger.error('--------------------------------');
+
+          let friendlyMessage = error.message || 'Cloudinary upload failed';
+          if (error.http_code === 403) {
+            friendlyMessage = `Cloudinary 403 Forbidden: ${error.message}. Please verify that your Cloudinary API Key has 'create' / upload permissions in Cloudinary Console -> Settings -> Access Keys.`;
+          }
+
+          const apiError = new ApiError(error.http_code || 500, friendlyMessage);
+          apiError.cloudinaryError = {
+            http_code: error.http_code,
+            name: error.name,
+            message: error.message,
+          };
+          return reject(apiError);
         }
-        logger.info(`Cloudinary image upload successful: ${result.secure_url} (public_id: ${result.public_id})`);
+
+        logger.info('--- Cloudinary Upload Succeeded ---');
+        logger.info(`Cloudinary response status: 200 OK`);
+        logger.info(`Public ID: ${result.public_id}`);
+        logger.info(`Secure URL: ${result.secure_url}`);
+        logger.info('-----------------------------------');
+
         resolve({
           imageUrl: result.secure_url,
           publicId: result.public_id,
@@ -61,35 +112,77 @@ export const uploadBufferToCloudinary = (buffer, filename = '', folder = 'mitsaf
  */
 export const processBlogImageUpload = async (file, req) => {
   if (!file) {
-    throw new Error('No file provided for upload');
+    throw new ApiError(400, 'No file provided for upload');
   }
 
   // 1. Direct Buffer Upload (Multer Memory Storage)
   if (file.buffer) {
-    logger.info(`Uploading image buffer (${file.originalname}) directly to Cloudinary...`);
+    logUploadDiagnostics({
+      file,
+      method: 'upload_stream (memory buffer)',
+      folder: 'mitsafe/blogs',
+      resourceType: 'image',
+      preset: null,
+    });
+
     const result = await uploadBufferToCloudinary(file.buffer, file.originalname);
     return result;
   }
 
   // 2. Fallback if file was saved to temporary disk path
   if (file.path) {
-    logger.info(`Uploading temp file ${file.path} to Cloudinary...`);
-    const result = await cloudinary.uploader.upload(file.path, {
+    logUploadDiagnostics({
+      file,
+      method: 'uploader.upload (temp disk path)',
       folder: 'mitsafe/blogs',
-      resource_type: 'image',
-      transformation: [
-        { quality: 'auto:good' },
-        { fetch_format: 'auto' },
-      ],
+      resourceType: 'image',
+      preset: null,
     });
 
-    return {
-      imageUrl: result.secure_url,
-      publicId: result.public_id,
-    };
+    try {
+      const result = await cloudinary.uploader.upload(file.path, {
+        folder: 'mitsafe/blogs',
+        resource_type: 'image',
+        transformation: [
+          { quality: 'auto:good' },
+          { fetch_format: 'auto' },
+        ],
+      });
+
+      logger.info('--- Cloudinary Upload Succeeded ---');
+      logger.info(`Cloudinary response status: 200 OK`);
+      logger.info(`Public ID: ${result.public_id}`);
+      logger.info(`Secure URL: ${result.secure_url}`);
+      logger.info('-----------------------------------');
+
+      return {
+        imageUrl: result.secure_url,
+        publicId: result.public_id,
+      };
+    } catch (error) {
+      logger.error('--- Cloudinary Upload Failed ---');
+      logger.error(`Cloudinary response status: Failed`);
+      logger.error(`Cloudinary error http_code: ${error.http_code || 500}`);
+      logger.error(`Cloudinary error message: ${error.message || 'Unknown error'}`);
+      logger.error(`Cloudinary error name: ${error.name || 'Error'}`);
+      logger.error('--------------------------------');
+
+      let friendlyMessage = error.message || 'Cloudinary upload failed';
+      if (error.http_code === 403) {
+        friendlyMessage = `Cloudinary 403 Forbidden: ${error.message}. Please verify that your Cloudinary API Key has 'create' / upload permissions in Cloudinary Console -> Settings -> Access Keys.`;
+      }
+
+      const apiError = new ApiError(error.http_code || 500, friendlyMessage);
+      apiError.cloudinaryError = {
+        http_code: error.http_code,
+        name: error.name,
+        message: error.message,
+      };
+      throw apiError;
+    }
   }
 
-  throw new Error('Invalid file format received for image upload');
+  throw new ApiError(400, 'Invalid file format received for image upload');
 };
 
 /**
@@ -105,3 +198,4 @@ export const deleteFromCloudinary = async (publicId) => {
     logger.warn(`Failed to delete image from Cloudinary (${publicId}): ${err.message}`);
   }
 };
+
