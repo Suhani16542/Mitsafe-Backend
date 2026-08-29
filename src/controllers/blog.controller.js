@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import asyncWrapper from '../utils/asyncWrapper.js';
 import ApiError from '../utils/apiError.js';
 import Blog, { generateSlug } from '../models/blog.model.js';
+import Category from '../models/category.model.js';
 import { processBlogImageUpload, deleteFromCloudinary } from '../services/upload.service.js';
 import logger from '../config/logger.js';
 
@@ -182,7 +183,22 @@ export const getBlogBySlug = asyncWrapper(async (req, res, next) => {
  * @access  Public
  */
 export const getCategories = asyncWrapper(async (req, res) => {
-  const categories = await Blog.distinct('category', { status: 'published' });
+  // First attempt to get explicitly configured active categories from Category model
+  let categories = [];
+  try {
+    const activeCategories = await Category.find({ status: 'active' }).sort({ name: 1 }).lean();
+    if (activeCategories && activeCategories.length > 0) {
+      categories = activeCategories.map((c) => c.name);
+    }
+  } catch (err) {
+    // Fallback if Category model query fails
+  }
+
+  // Fallback / merge with distinct categories from published blogs if no Category collection items exist
+  if (!categories || categories.length === 0) {
+    categories = await Blog.distinct('category', { status: 'published' });
+  }
+
   res.status(200).json({
     success: true,
     data: categories,
