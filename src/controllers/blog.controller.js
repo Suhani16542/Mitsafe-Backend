@@ -3,7 +3,13 @@ import asyncWrapper from '../utils/asyncWrapper.js';
 import ApiError from '../utils/apiError.js';
 import Blog, { generateSlug } from '../models/blog.model.js';
 import Category from '../models/category.model.js';
-import { processBlogImageUpload, deleteFromCloudinary } from '../services/upload.service.js';
+import {
+  processBlogImageUpload,
+  processBlogVideoUpload,
+  processBlogMediaUpload,
+  deleteFromCloudinary,
+} from '../services/upload.service.js';
+import { sanitizeArticleContent } from '../utils/sanitizeContent.js';
 import logger from '../config/logger.js';
 
 // Helper to check if request has valid admin credentials (Cookie, Bearer token, or API key)
@@ -242,7 +248,7 @@ export const createBlog = asyncWrapper(async (req, res, next) => {
     title,
     slug: targetSlug,
     excerpt: excerpt || '',
-    content,
+    content: sanitizeArticleContent(content),
     category,
     keywords: normalizeStringArray(keywords),
     tags: normalizeStringArray(tags),
@@ -302,6 +308,11 @@ export const updateBlog = asyncWrapper(async (req, res, next) => {
   // Handle tags format conversion & sanitization if provided
   if (req.body.tags !== undefined) {
     req.body.tags = normalizeStringArray(req.body.tags);
+  }
+
+  // Handle content sanitization (preserves video and image tags, removes dangerous scripts)
+  if (req.body.content !== undefined) {
+    req.body.content = sanitizeArticleContent(req.body.content);
   }
 
   // Handle publishedAt date when transitioning to published
@@ -399,4 +410,69 @@ export const uploadBlogImage = asyncWrapper(async (req, res, next) => {
     },
   });
 });
+
+/**
+ * @desc    Upload blog video directly to permanent Cloudinary storage
+ * @route   POST /api/v1/blogs/upload-video (or /api/blogs/upload-video)
+ * @access  Protected (Admin Key Required)
+ */
+export const uploadBlogVideo = asyncWrapper(async (req, res, next) => {
+  if (!req.file) {
+    return next(new ApiError(400, 'Please select a video file to upload'));
+  }
+
+  const result = await processBlogVideoUpload(req.file, req);
+
+  res.status(200).json({
+    success: true,
+    message: 'Video uploaded successfully to Cloudinary',
+    videoUrl: result.videoUrl,
+    url: result.videoUrl,
+    publicId: result.publicId,
+    data: {
+      videoUrl: result.videoUrl,
+      url: result.videoUrl,
+      publicId: result.publicId,
+      duration: result.duration,
+      format: result.format,
+      resourceType: 'video',
+    },
+  });
+});
+
+/**
+ * @desc    Flexible upload endpoint for blog media (images or videos)
+ * @route   POST /api/v1/blogs/upload-media (or /api/blogs/upload-media)
+ * @access  Protected (Admin Key Required)
+ */
+export const uploadBlogMedia = asyncWrapper(async (req, res, next) => {
+  if (!req.file) {
+    return next(new ApiError(400, 'Please select a media file (image or video) to upload'));
+  }
+
+  const result = await processBlogMediaUpload(req.file, req);
+  const mediaUrl = result.videoUrl || result.imageUrl || result.url;
+
+  res.status(200).json({
+    success: true,
+    message: `${result.resourceType === 'video' ? 'Video' : 'Image'} uploaded successfully to Cloudinary`,
+    url: mediaUrl,
+    mediaUrl,
+    videoUrl: result.videoUrl || (result.resourceType === 'video' ? mediaUrl : undefined),
+    imageUrl: result.imageUrl || (result.resourceType === 'image' ? mediaUrl : undefined),
+    publicId: result.publicId,
+    resourceType: result.resourceType,
+    data: {
+      url: mediaUrl,
+      mediaUrl,
+      videoUrl: result.videoUrl || (result.resourceType === 'video' ? mediaUrl : undefined),
+      imageUrl: result.imageUrl || (result.resourceType === 'image' ? mediaUrl : undefined),
+      publicId: result.publicId,
+      duration: result.duration,
+      format: result.format,
+      resourceType: result.resourceType,
+    },
+  });
+});
+
 

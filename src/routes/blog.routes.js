@@ -8,6 +8,8 @@ import {
   toggleBlogStatus,
   deleteBlog,
   uploadBlogImage,
+  uploadBlogVideo,
+  uploadBlogMedia,
 } from '../controllers/blog.controller.js';
 import { adminAuthMiddleware } from '../middlewares/adminAuth.middleware.js';
 import {
@@ -16,7 +18,11 @@ import {
   blogStatusValidationRules,
 } from '../validators/blog.validator.js';
 import { validateRequest } from '../middlewares/validation.middleware.js';
-import { uploadSingleImage } from '../middlewares/upload.middleware.js';
+import {
+  uploadSingleImage,
+  uploadSingleVideo,
+  uploadSingleMedia,
+} from '../middlewares/upload.middleware.js';
 
 const router = express.Router();
 
@@ -38,12 +44,28 @@ router.get('/:slug', getBlogBySlug);
 // Cookie (admin_token) or Authorization header required
 // ==========================================
 
-// POST /api/blogs/upload-image - Upload featured image to Cloudinary
+// POST /api/blogs/upload-image - Upload featured image or body image to Cloudinary
 router.post(
   '/upload-image',
   adminAuthMiddleware,
   uploadSingleImage,
   uploadBlogImage
+);
+
+// POST /api/blogs/upload-video - Dedicated video upload for blog article content
+router.post(
+  '/upload-video',
+  adminAuthMiddleware,
+  uploadSingleVideo,
+  uploadBlogVideo
+);
+
+// POST /api/blogs/upload-media - Flexible media upload (image or video) for blog article content
+router.post(
+  '/upload-media',
+  adminAuthMiddleware,
+  uploadSingleMedia,
+  uploadBlogMedia
 );
 
 // POST /api/blogs - Create a new blog post

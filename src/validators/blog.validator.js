@@ -89,6 +89,11 @@ export const updateBlogValidationRules = [
     .matches(/^[a-z0-9-]+$/)
     .withMessage('Slug can only contain lowercase letters, numbers, and hyphens'),
 
+  body('content')
+    .optional()
+    .isString()
+    .withMessage('Content must be a string'),
+
   body('keywords')
     .optional()
     .custom((value) => {
