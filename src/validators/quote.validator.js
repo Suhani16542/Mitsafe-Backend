@@ -2,22 +2,25 @@ import { body } from 'express-validator';
 
 export const quoteValidationRules = [
   body('fullName')
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
-    .notEmpty()
-    .withMessage('Full name cannot be empty'),
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Full name must be between 2 and 100 characters long'),
 
   body('name')
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
-    .notEmpty()
-    .withMessage('Name cannot be empty'),
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Name must be between 2 and 100 characters long'),
 
   // Ensure at least name or fullName is provided
   body().custom((value, { req }) => {
-    const hasName = (req.body.fullName && req.body.fullName.trim()) || (req.body.name && req.body.name.trim());
-    if (!hasName) {
+    const nameVal = (req.body.fullName || req.body.name || '').trim();
+    if (!nameVal) {
       throw new Error('Name / Full name is required');
+    }
+    if (nameVal.length < 2 || nameVal.length > 100) {
+      throw new Error('Name must be between 2 and 100 characters long');
     }
     return true;
   }),
@@ -28,24 +31,71 @@ export const quoteValidationRules = [
     .withMessage('Email address is required')
     .isEmail()
     .withMessage('Please enter a valid email address')
+    .isLength({ max: 254 })
+    .withMessage('Email address is too long')
     .normalizeEmail(),
 
+  body('phone')
+    .optional({ checkFalsy: true })
+    .trim()
+    .custom((val) => {
+      if (!val) return true;
+      // Allow international phone numbers (+, digits, spaces, hyphens, periods, parentheses)
+      const validChars = /^[\d\s\-+.()]{6,25}$/.test(val);
+      const digitCount = (val.match(/\d/g) || []).length;
+      if (!validChars || digitCount < 6 || digitCount > 16) {
+        throw new Error('Please enter a valid phone number (6 to 16 digits)');
+      }
+      return true;
+    }),
+
+  body('companyName')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 150 })
+    .withMessage('Company name cannot exceed 150 characters'),
+
+  body('company')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 150 })
+    .withMessage('Company name cannot exceed 150 characters'),
+
   body('service')
-    .optional()
-    .trim(),
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 120 })
+    .withMessage('Service selection cannot exceed 120 characters'),
 
   body('serviceCategory')
-    .optional()
-    .trim(),
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 120 })
+    .withMessage('Service category cannot exceed 120 characters'),
 
   // Ensure at least service or serviceCategory is provided
   body().custom((value, { req }) => {
-    const hasService = (req.body.service && req.body.service.trim()) || (req.body.serviceCategory && req.body.serviceCategory.trim());
-    if (!hasService) {
+    const serviceVal = (req.body.service || req.body.serviceCategory || '').trim();
+    if (!serviceVal) {
       throw new Error('Service selection is required');
+    }
+    if (serviceVal.length < 2 || serviceVal.length > 120) {
+      throw new Error('Service selection must be between 2 and 120 characters');
     }
     return true;
   }),
+
+  body('budget')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Estimated budget cannot exceed 100 characters'),
+
+  body('timeline')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Estimated timeline cannot exceed 100 characters'),
 
   body('message')
     .trim()
@@ -54,35 +104,15 @@ export const quoteValidationRules = [
     .isLength({ min: 5, max: 3000 })
     .withMessage('Message must be between 5 and 3000 characters long'),
 
-  body('phone')
-    .optional()
-    .trim()
-    .isLength({ max: 25 })
-    .withMessage('Phone number is too long'),
-
-  body('companyName')
-    .optional()
-    .trim(),
-
-  body('company')
-    .optional()
-    .trim(),
-
-  body('budget')
-    .optional()
-    .trim(),
-
-  body('timeline')
-    .optional()
-    .trim(),
-
   body('sourcePage')
-    .optional()
-    .trim(),
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage('Source page path cannot exceed 255 characters'),
 
   body('requestType')
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
     .isIn(['quote', 'consultation'])
-    .withMessage('Invalid request type'),
+    .withMessage('Invalid request type. Must be either quote or consultation'),
 ];

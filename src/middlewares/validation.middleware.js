@@ -9,6 +9,7 @@ export const validateRequest = (req, res, next) => {
     }));
     
     return res.status(400).json({
+      success: false,
       status: 'fail',
       message: 'Validation failed',
       errors: errorMessages,

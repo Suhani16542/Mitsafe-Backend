@@ -23,6 +23,14 @@ export const validateEnv = () => {
     }
   }
 
+  // Check and log status of Cloudflare Turnstile Configuration
+  const turnstileSecret = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
+  if (turnstileSecret && !turnstileSecret.includes('placeholder') && !turnstileSecret.includes('your_')) {
+    logger.info('Cloudflare Turnstile security configuration loaded successfully');
+  } else {
+    logger.warn('CLOUDFLARE_TURNSTILE_SECRET_KEY is not set or using a placeholder. Public quote submissions will reject unverified requests.');
+  }
+
   // Check and log status of Brevo Email Configuration
   const brevoApiKey = process.env.BREVO_API_KEY;
   if (brevoApiKey && !brevoApiKey.includes('placeholder') && !brevoApiKey.includes('your_brevo')) {

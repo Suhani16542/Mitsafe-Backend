@@ -45,6 +45,9 @@ async function runTests() {
 
     // 4. Quote API success test
     console.log('\n--- 3. Testing Quote Submission Success ---');
+    if (!process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY) {
+      process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY = '1x0000000000000000000000000000000AA';
+    }
     const validQuoteRes = await fetch(`${baseUrl}/api/quotes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -58,6 +61,7 @@ async function runTests() {
         timeline: 'ASAP',
         message: 'We require a new high-performance website.',
         sourcePage: '/services/web-development',
+        turnstileToken: 'dummy_valid_test_token',
       }),
     });
     const validQuoteData = await validQuoteRes.json();
