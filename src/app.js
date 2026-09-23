@@ -13,6 +13,7 @@ import path from 'path';
 import quoteRoutes from './routes/quote.routes.js';
 import blogRoutes from './routes/blog.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import categoryRoutes from './routes/category.routes.js';
 
 const app = express();
 
@@ -123,6 +124,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/quotes', quoteRoutes);
 app.use('/api/quote', quoteRoutes);
 app.use('/api/blogs', blogRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/blog-categories', categoryRoutes);
 
 // Handle 404/route not found
 app.all('*', routeNotFoundHandler);

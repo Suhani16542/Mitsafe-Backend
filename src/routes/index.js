@@ -2,6 +2,7 @@ import express from 'express';
 import quoteRoutes from './quote.routes.js';
 import blogRoutes from './blog.routes.js';
 import adminRoutes from './admin.routes.js';
+import categoryRoutes from './category.routes.js';
 
 const router = express.Router();
 
@@ -19,6 +20,8 @@ router.get('/health', (req, res) => {
 router.use('/admin', adminRoutes);
 router.use('/quotes', quoteRoutes);
 router.use('/blogs', blogRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/blog-categories', categoryRoutes);
 
 // Base route under /api/v1
 router.get('/', (req, res) => {

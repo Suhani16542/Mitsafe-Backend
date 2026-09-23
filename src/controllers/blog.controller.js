@@ -189,25 +189,40 @@ export const getBlogBySlug = asyncWrapper(async (req, res, next) => {
  * @access  Public
  */
 export const getCategories = asyncWrapper(async (req, res) => {
-  // First attempt to get explicitly configured active categories from Category model
-  let categories = [];
+  let categoryNames = [];
   try {
     const activeCategories = await Category.find({ status: 'active' }).sort({ name: 1 }).lean();
     if (activeCategories && activeCategories.length > 0) {
-      categories = activeCategories.map((c) => c.name);
+      categoryNames = activeCategories.map((c) => c.name);
     }
   } catch (err) {
-    // Fallback if Category model query fails
+    logger.warn(`Failed to fetch active categories from model: ${err.message}`);
   }
 
-  // Fallback / merge with distinct categories from published blogs if no Category collection items exist
-  if (!categories || categories.length === 0) {
-    categories = await Blog.distinct('category', { status: 'published' });
+  // Also merge with distinct categories from published blogs so existing blogs' categories aren't lost
+  try {
+    const blogCategories = await Blog.distinct('category', { status: 'published' });
+    if (blogCategories && blogCategories.length > 0) {
+      const combined = new Set([...categoryNames, ...blogCategories.filter(Boolean)]);
+      categoryNames = Array.from(combined).sort();
+    }
+  } catch (err) {
+    logger.warn(`Failed to fetch distinct categories from blogs: ${err.message}`);
+  }
+
+  // If detailed=true is requested, return Category model objects
+  if (req.query.detailed === 'true') {
+    const detailedCategories = await Category.find({ status: 'active' }).sort({ name: 1 }).lean();
+    return res.status(200).json({
+      success: true,
+      count: detailedCategories.length,
+      data: detailedCategories,
+    });
   }
 
   res.status(200).json({
     success: true,
-    data: categories,
+    data: categoryNames,
   });
 });
 
