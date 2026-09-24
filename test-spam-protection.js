@@ -178,7 +178,6 @@ async function runSecurityTests() {
         phone: '+91 98765 43210',
         companyName: 'Mitsafe Technologies',
         service: 'Website Design & Development',
-        budget: '$1,000 - $5,000',
         timeline: '1 Month',
         message: 'We require a scalable web application with modern aesthetics.',
         sourcePage: '/services/web-development',

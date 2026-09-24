@@ -30,11 +30,6 @@ const quoteSchema = new mongoose.Schema(
       required: [true, 'Service selection is required'],
       trim: true,
     },
-    budget: {
-      type: String,
-      trim: true,
-      default: '',
-    },
     timeline: {
       type: String,
       trim: true,

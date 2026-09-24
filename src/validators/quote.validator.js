@@ -85,11 +85,6 @@ export const quoteValidationRules = [
     return true;
   }),
 
-  body('budget')
-    .optional({ checkFalsy: true })
-    .trim()
-    .isLength({ max: 100 })
-    .withMessage('Estimated budget cannot exceed 100 characters'),
 
   body('timeline')
     .optional({ checkFalsy: true })

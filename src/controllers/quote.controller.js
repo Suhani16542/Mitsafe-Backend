@@ -31,7 +31,6 @@ export const createQuote = asyncWrapper(async (req, res) => {
     company,
     service,
     serviceCategory,
-    budget,
     timeline,
     message,
     sourcePage,
@@ -44,7 +43,6 @@ export const createQuote = asyncWrapper(async (req, res) => {
   const resolvedService = sanitizeString(service || serviceCategory || '', 120);
   const normalizedEmail = (email || '').trim().toLowerCase().slice(0, 254);
   const cleanedPhone = sanitizeString(phone || '', 30);
-  const cleanedBudget = sanitizeString(budget || '', 100);
   const cleanedTimeline = sanitizeString(timeline || '', 100);
   const sanitizedMessage = sanitizeString(message || '', 3000);
   const cleanedSourcePage = sanitizeString(sourcePage || '/', 255);
@@ -87,7 +85,6 @@ export const createQuote = asyncWrapper(async (req, res) => {
     phone: cleanedPhone,
     companyName: resolvedCompanyName,
     service: resolvedService,
-    budget: cleanedBudget,
     timeline: cleanedTimeline,
     message: sanitizedMessage,
     sourcePage: cleanedSourcePage || '/',

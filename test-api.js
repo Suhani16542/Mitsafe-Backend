@@ -57,7 +57,6 @@ async function runTests() {
         phone: '+91 9876543210',
         companyName: 'Mitsafe Test Corp',
         service: 'Website Design & Development',
-        budget: 'Under ₹50K',
         timeline: 'ASAP',
         message: 'We require a new high-performance website.',
         sourcePage: '/services/web-development',

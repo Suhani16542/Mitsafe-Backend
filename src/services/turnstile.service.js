@@ -19,7 +19,13 @@ export const verifyTurnstileToken = async (token, remoteIp) => {
     };
   }
 
+  const tokenPresent = Boolean(token && typeof token === 'string' && token.trim().length > 0);
+  const tokenLength = tokenPresent ? token.trim().length : 0;
+
+  logger.info(`[Turnstile Diagnostic] Token present: ${tokenPresent ? 'yes' : 'no'} | Token length: ${tokenLength} | RemoteIP present: ${Boolean(remoteIp)}`);
+
   if (!token || typeof token !== 'string' || token.trim().length === 0) {
+    logger.warn('[Turnstile Diagnostic] Rejected: Token is missing or empty string');
     return {
       success: false,
       error: 'Turnstile verification token is missing or empty',
@@ -43,7 +49,7 @@ export const verifyTurnstileToken = async (token, remoteIp) => {
     });
 
     if (!response.ok) {
-      logger.error(`Cloudflare Turnstile API HTTP Error: status ${response.status}`);
+      logger.error(`[Turnstile Diagnostic] Cloudflare API HTTP Error: status ${response.status}`);
       return {
         success: false,
         error: `Cloudflare Turnstile service returned status ${response.status}`,
@@ -52,19 +58,25 @@ export const verifyTurnstileToken = async (token, remoteIp) => {
 
     const data = await response.json();
 
+    const errorCodes = data['error-codes'] || [];
+    const hostname = data.hostname || 'none';
+
+    logger.info(
+      `[Turnstile Diagnostic] Cloudflare response -> Success: ${Boolean(data.success)} | Hostname: ${hostname} | Error codes: [${errorCodes.join(', ')}]`
+    );
+
     if (data.success) {
-      return { success: true };
+      return { success: true, hostname: data.hostname };
     }
 
-    const errorCodes = data['error-codes'] || [];
-    logger.warn(`Turnstile validation rejected by Cloudflare. Error codes: ${errorCodes.join(', ')}`);
     return {
       success: false,
       error: 'Security token verification failed',
       errorCodes,
+      hostname: data.hostname,
     };
   } catch (error) {
-    logger.error('Network error during Cloudflare Turnstile verification:', error.message);
+    logger.error(`[Turnstile Diagnostic] Network error during Turnstile verification: ${error.message}`);
     return {
       success: false,
       error: 'Unable to reach security verification service',

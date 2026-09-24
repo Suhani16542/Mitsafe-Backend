@@ -63,7 +63,6 @@ export const sendQuoteNotificationEmail = async (quoteData) => {
               <tr><td class="label">Phone:</td><td>${quoteData.phone || 'N/A'}</td></tr>
               <tr><td class="label">Company:</td><td>${quoteData.companyName || 'N/A'}</td></tr>
               <tr><td class="label">Service Selected:</td><td><strong>${quoteData.service}</strong></td></tr>
-              <tr><td class="label">Estimated Budget:</td><td>${quoteData.budget || 'N/A'}</td></tr>
               <tr><td class="label">Estimated Timeline:</td><td>${quoteData.timeline || 'N/A'}</td></tr>
               <tr><td class="label">Source Page:</td><td>${quoteData.sourcePage || '/'}</td></tr>
               <tr><td class="label">Submission Date:</td><td>${submissionDate}</td></tr>
@@ -90,7 +89,6 @@ New Get a Quote Enquiry - Mitsafe
 - Phone: ${quoteData.phone || 'N/A'}
 - Company: ${quoteData.companyName || 'N/A'}
 - Service: ${quoteData.service}
-- Budget: ${quoteData.budget || 'N/A'}
 - Timeline: ${quoteData.timeline || 'N/A'}
 - Source Page: ${quoteData.sourcePage || '/'}
 - Submission Date: ${submissionDate}
